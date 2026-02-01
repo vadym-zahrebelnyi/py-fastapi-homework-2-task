@@ -603,22 +603,31 @@ async def test_update_movie_success(client, db_session, seed_database):
 
 
 @pytest.mark.asyncio
-async def test_update_movie_not_found(client):
+async def test_update_movie_invalid_data(client, db_session, seed_database):
     """
-    Test the `/movies/{movie_id}/` endpoint with a non-existent movie ID.
+    Test that the PATCH /movies/{movie_id}/ endpoint returns a 400 Bad Request
+    with a generic "Invalid input data." message when provided with invalid data.
     """
-    non_existent_id = 99999
-    update_data = {"name": "Non-existent Movie", "score": 90.0}
+    stmt = select(MovieModel).limit(1)
+    result = await db_session.execute(stmt)
+    movie = result.scalars().first()
+    assert movie is not None, "No movies found in the database to update."
+
+    movie_id = movie.id
+    invalid_update_data = {
+        "score": 150.0,  # Invalid score (should be <= 100)
+        "name": "Another Name",  # Valid field
+    }
 
     response = await client.patch(
-        f"/api/v1/theater/movies/{non_existent_id}/", json=update_data
+        f"/api/v1/theater/movies/{movie_id}/", json=invalid_update_data
     )
     assert (
-        response.status_code == 404
-    ), f"Expected status code 404, but got {response.status_code}"
+        response.status_code == 400
+    ), f"Expected status code 400, but got {response.status_code}"
 
     response_data = response.json()
-    expected_detail = "Movie with the given ID was not found."
+    expected_detail = {"detail": "Invalid input data."}
     assert (
-        response_data["detail"] == expected_detail
-    ), f"Expected detail message: {expected_detail}, but got: {response_data['detail']}"
+        response_data == expected_detail
+    ), f"Expected {expected_detail}, but got: {response_data}"

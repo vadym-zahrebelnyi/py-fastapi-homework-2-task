@@ -88,8 +88,31 @@ class MovieResponse(MovieBaseResponse):
     languages: list[languages.LanguageResponse]
 
 
-MovieUpdate = create_model(
-    "MovieUpdate",
-    __base__=MovieCreate,
-    **{k: (v | None, None) for k, v in get_type_hints(MovieCreate).items()},
-)
+class MovieUpdate(MovieCreate):
+    name: LimitedStr | None = None
+    date: datetime.date | None = None
+    score: Annotated[float, Field(ge=0, le=100)] | None = None
+    overview: str | None = None
+    status: MovieStatusEnum | None = None
+    budget: Annotated[Decimal, Field(ge=0, max_digits=15, decimal_places=2)] | None = None
+    revenue: Annotated[float, Field(ge=0)] | None = None
+    country: Annotated[str, StringConstraints(min_length=3, max_length=3)] | None = None
+    genres: list[LimitedStr] | None = None
+    actors: list[LimitedStr] | None = None
+    languages: list[LimitedStr] | None = None
+
+    @field_validator("budget", mode="before")
+    @classmethod
+    def round_money(cls, value):
+        if value is None:
+            return None
+        return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @field_validator("date")
+    @classmethod
+    def date_not_too_far_in_future(cls, value):
+        if value is None:
+            return None
+        if value > datetime.date.today() + datetime.timedelta(days=365):
+            raise ValueError("Date cannot be more than one year in the future")
+        return value

@@ -83,7 +83,16 @@ async def get_movie_list(
 @router.post(
     "/movies/", response_model=MovieResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_movie(db: Database, movie_data: MovieCreate) -> MovieResponse:
+async def create_movie(request: Request, db: Database) -> MovieResponse:
+    try:
+        json_data = await request.json()
+        movie_data = MovieCreate.model_validate(json_data)
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input data.",
+        )
+
     db_movie = (
         await db.scalars(
             select(MovieModel).where(
@@ -149,9 +158,7 @@ async def delete_movie(movie_id: int, db: Database) -> None:
 
 
 @router.patch("/movies/{movie_id}/", response_model=dict)
-async def update_movie(
-    movie_id: int, update_data: Annotated[Request, MovieUpdate], db: Database
-) -> dict:
+async def update_movie(movie_id: int, request: Request, db: Database) -> dict:
     movie = await db.get(MovieModel, movie_id)
 
     if not movie:
@@ -161,15 +168,17 @@ async def update_movie(
         )
 
     try:
-        json_data = await update_data.json()
+        json_data = await request.json()
         update_data = MovieUpdate.model_validate(json_data)
-    except ValidationError:
+    except (ValidationError, Exception):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid input data.",
         )
 
-    for field, value in update_data.model_dump(exclude_unset=True).items():
+    update_data_dict = update_data.model_dump(exclude_unset=True)
+
+    for field, value in update_data_dict.items():
         setattr(movie, field, value)
 
     db.add(movie)
