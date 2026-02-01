@@ -1,5 +1,8 @@
 from schemas.movies import (
-    MovieDetailSchema,
-    MovieListResponseSchema,
-    MovieListItemSchema
+    MoviesListItem,
+    MoviesList,
+    MovieCreate,
+    MovieUpdate,
+    MovieResponse,
 )
+from schemas.pagination import PaginationMeta, PaginationParams
