@@ -3,11 +3,21 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, get_type_hints
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel, Field, ConfigDict, field_validator, create_model
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+    field_validator,
+    create_model,
+    StringConstraints,
+)
 
 from database import MovieModel
 from database.models import MovieStatusEnum
 from schemas import countries, genres, actors, languages
+
+
+LimitedStr = Annotated[str, StringConstraints(max_length=255)]
 
 
 class MovieBaseResponse(BaseModel):
@@ -33,7 +43,7 @@ class MoviesList(BaseModel):
 
 
 class MovieCreate(BaseModel):
-    name: Annotated[str, Field(max_length=255)]
+    name: LimitedStr
     date: datetime.date
     score: Annotated[float, Field(ge=0, le=100)]
     overview: str
@@ -41,9 +51,9 @@ class MovieCreate(BaseModel):
     budget: Annotated[Decimal, Field(ge=0, max_digits=15, decimal_places=2)]
     revenue: Annotated[float, Field(ge=0)]
     country: Annotated[str, Field(max_length=3)]
-    genres: Annotated[list[str], Field(max_length=255)]
-    actors: Annotated[list[str], Field(max_length=255)]
-    languages: Annotated[list[str], Field(max_length=255)]
+    genres: list[LimitedStr]
+    actors: list[LimitedStr]
+    languages: list[LimitedStr]
 
     @field_validator("budget", mode="before")
     @classmethod

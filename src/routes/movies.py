@@ -1,6 +1,7 @@
 from typing import Annotated, Type, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, status, Request
+from pydantic import ValidationError
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -134,11 +135,10 @@ async def get_movie(
 
 
 @router.delete("/movies/{movie_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_movie(
-    movie_id: int,
-    db: Database,
-) -> None:
-    if not (movie := await db.get(MovieModel, movie_id)):
+async def delete_movie(movie_id: int, db: Database) -> None:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found.",
@@ -149,11 +149,24 @@ async def delete_movie(
 
 
 @router.patch("/movies/{movie_id}/", response_model=dict)
-async def update_movie(movie_id: int, update_data: MovieUpdate, db: Database) -> dict:
-    if not (movie := await db.get(MovieModel, movie_id)):
+async def update_movie(
+    movie_id: int, update_data: Annotated[Request, MovieUpdate], db: Database
+) -> dict:
+    movie = await db.get(MovieModel, movie_id)
+
+    if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found.",
+        )
+
+    try:
+        json_data = await update_data.json()
+        update_data = MovieUpdate.model_validate(json_data)
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input data.",
         )
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
@@ -161,5 +174,6 @@ async def update_movie(movie_id: int, update_data: MovieUpdate, db: Database) ->
 
     db.add(movie)
     await db.commit()
+    await db.refresh(movie)
 
     return {"detail": "Movie updated successfully."}
